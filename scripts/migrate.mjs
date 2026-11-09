@@ -14,6 +14,8 @@ const files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
 const client = new Client({ connectionString: url, ssl: url.includes("supabase") ? { rejectUnauthorized: false } : undefined });
 try {
   await client.connect();
+  await client.query("create schema if not exists visahobe_os");
+  await client.query("set search_path to visahobe_os, public");
   for (const f of files) {
     let sql = readFileSync(new URL(f, dir), "utf8");
     sql = sql.replace(/CREATE TABLE (?!IF NOT EXISTS)/g, "CREATE TABLE IF NOT EXISTS ");

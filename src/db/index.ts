@@ -18,6 +18,8 @@ export const pool =
     // Managed Postgres (Supabase/Neon poolers) present a self-signed chain on some regions
     ssl: /supabase|neon|render|amazonaws|pooler/i.test(databaseUrl) ? { rejectUnauthorized: false } : undefined,
     max: 5,
+    // A dedicated schema keeps this workspace isolated from other apps on the same database
+    options: "-c search_path=visahobe_os,public",
   });
 
 if (process.env.NODE_ENV !== "production") {
