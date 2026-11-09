@@ -2,7 +2,7 @@
 
 import { and, desc, eq, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { db } from "@/db";
+import { db, ensureSchema } from "@/db";
 import { adminChatMessages, projects, superagents, users } from "@/db/schema";
 import { requireAdmin } from "@/lib/auth";
 import { applyContentChanges, readRawContent, undoLastChange } from "@/lib/content";
@@ -16,6 +16,7 @@ function refreshAll() {
 export type ContentSaveState = { ok?: boolean; error?: string; count?: number } | undefined;
 
 export async function saveContentAction(changes: Content): Promise<ContentSaveState> {
+  await ensureSchema();
   const admin = await requireAdmin();
   const { applied, rejected } = await applyContentChanges(changes, admin.id, `Editor: ${Object.keys(changes).length} field(s)`);
   refreshAll();
@@ -24,6 +25,7 @@ export async function saveContentAction(changes: Content): Promise<ContentSaveSt
 }
 
 export async function resetSectionAction(section: string): Promise<ContentSaveState> {
+  await ensureSchema();
   const admin = await requireAdmin();
   const ch: Content = {};
   for (const f of FIELDS) if (section === "all" || f.section === section) ch[f.key] = DEFAULTS[f.key];
@@ -33,12 +35,14 @@ export async function resetSectionAction(section: string): Promise<ContentSaveSt
 }
 
 export async function undoContentAction() {
+  await ensureSchema();
   await requireAdmin();
   await undoLastChange();
   refreshAll();
 }
 
 export async function adminChatAction(message: string) {
+  await ensureSchema();
   const admin = await requireAdmin();
   const text = message.trim().slice(0, 4000);
   if (!text) return;
@@ -72,6 +76,7 @@ export async function adminChatAction(message: string) {
 }
 
 export async function clearAdminChatAction() {
+  await ensureSchema();
   const admin = await requireAdmin();
   await db.delete(adminChatMessages).where(eq(adminChatMessages.userId, admin.id));
   revalidatePath("/admin/assistant");
@@ -80,6 +85,7 @@ export async function clearAdminChatAction() {
 /* -------- Users & data -------- */
 
 export async function setUserRoleAction(userId: number, role: string) {
+  await ensureSchema();
   const admin = await requireAdmin();
   if (userId === admin.id || !["admin", "user"].includes(role)) return;
   await db.update(users).set({ role }).where(eq(users.id, userId));
@@ -87,6 +93,7 @@ export async function setUserRoleAction(userId: number, role: string) {
 }
 
 export async function setUserPlanAction(userId: number, plan: string) {
+  await ensureSchema();
   await requireAdmin();
   if (!["free", "starter", "builder", "pro"].includes(plan)) return;
   await db.update(users).set({ plan }).where(eq(users.id, userId));
@@ -94,6 +101,7 @@ export async function setUserPlanAction(userId: number, plan: string) {
 }
 
 export async function deleteUserAction(userId: number) {
+  await ensureSchema();
   const admin = await requireAdmin();
   await db.delete(users).where(and(eq(users.id, userId), ne(users.id, admin.id)));
   revalidatePath("/admin/users");
@@ -101,12 +109,14 @@ export async function deleteUserAction(userId: number) {
 }
 
 export async function adminDeleteProjectAction(id: number) {
+  await ensureSchema();
   await requireAdmin();
   await db.delete(projects).where(eq(projects.id, id));
   revalidatePath("/admin");
 }
 
 export async function adminToggleAgentAction(id: number) {
+  await ensureSchema();
   await requireAdmin();
   const [a] = await db.select().from(superagents).where(eq(superagents.id, id)).limit(1);
   if (!a) return;

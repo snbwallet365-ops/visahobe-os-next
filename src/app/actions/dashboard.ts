@@ -3,7 +3,7 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { db } from "@/db";
+import { db, ensureSchema } from "@/db";
 import { integrations, projectMessages, projects, superagents, users } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { createProjectForUser, followUpReply } from "@/lib/projects";
@@ -14,6 +14,7 @@ import { randomToken } from "@/lib/utils";
 /* ---------------- Projects ---------------- */
 
 export async function createProjectAction(formData: FormData) {
+  await ensureSchema();
   const user = await requireUser();
   const prompt = String(formData.get("prompt") ?? "").trim();
   const category = String(formData.get("category") ?? "Apps");
@@ -28,6 +29,7 @@ async function ownedProject(userId: number, id: number) {
 }
 
 export async function sendProjectMessageAction(projectId: number, message: string) {
+  await ensureSchema();
   const user = await requireUser();
   const p = await ownedProject(user.id, projectId);
   if (!p || !message.trim()) return;
@@ -40,6 +42,7 @@ export async function sendProjectMessageAction(projectId: number, message: strin
 }
 
 export async function togglePublishAction(projectId: number) {
+  await ensureSchema();
   const user = await requireUser();
   const p = await ownedProject(user.id, projectId);
   if (!p) return;
@@ -49,6 +52,7 @@ export async function togglePublishAction(projectId: number) {
 }
 
 export async function deleteProjectAction(projectId: number) {
+  await ensureSchema();
   const user = await requireUser();
   await db.delete(projects).where(and(eq(projects.id, projectId), eq(projects.userId, user.id)));
   revalidatePath("/dashboard");
@@ -58,6 +62,7 @@ export async function deleteProjectAction(projectId: number) {
 /* ---------------- Superagents ---------------- */
 
 export async function createAgentAction(formData: FormData) {
+  await ensureSchema();
   const user = await requireUser();
   const name = String(formData.get("name") ?? "").trim();
   const template = String(formData.get("template") ?? "whatsapp_support");
@@ -73,6 +78,7 @@ async function ownedAgent(userId: number, id: number) {
 export type SaveState = { ok?: boolean; error?: string } | undefined;
 
 export async function saveAgentConnectionAction(agentId: number, _: SaveState, formData: FormData): Promise<SaveState> {
+  await ensureSchema();
   const user = await requireUser();
   if (!(await ownedAgent(user.id, agentId))) return { error: "Agent not found" };
   await db
@@ -90,6 +96,7 @@ export async function saveAgentConnectionAction(agentId: number, _: SaveState, f
 }
 
 export async function saveAgentLogicAction(agentId: number, _: SaveState, formData: FormData): Promise<SaveState> {
+  await ensureSchema();
   const user = await requireUser();
   if (!(await ownedAgent(user.id, agentId))) return { error: "Agent not found" };
   const systemPrompt = String(formData.get("systemPrompt") ?? "").trim();
@@ -111,6 +118,7 @@ export async function saveAgentLogicAction(agentId: number, _: SaveState, formDa
 }
 
 export async function toggleAgentStatusAction(agentId: number) {
+  await ensureSchema();
   const user = await requireUser();
   const a = await ownedAgent(user.id, agentId);
   if (!a) return;
@@ -120,6 +128,7 @@ export async function toggleAgentStatusAction(agentId: number) {
 }
 
 export async function deleteAgentAction(agentId: number) {
+  await ensureSchema();
   const user = await requireUser();
   await db.delete(superagents).where(and(eq(superagents.id, agentId), eq(superagents.userId, user.id)));
   revalidatePath("/dashboard/superagents");
@@ -127,6 +136,7 @@ export async function deleteAgentAction(agentId: number) {
 }
 
 export async function simulateMessageAction(agentId: number, contact: string, contactName: string, body: string) {
+  await ensureSchema();
   const user = await requireUser();
   const a = await ownedAgent(user.id, agentId);
   if (!a || !body.trim()) return;
@@ -137,6 +147,7 @@ export async function simulateMessageAction(agentId: number, contact: string, co
 /* ---------------- Integrations ---------------- */
 
 export async function toggleIntegrationAction(provider: string) {
+  await ensureSchema();
   const user = await requireUser();
   const [row] = await db
     .select()
@@ -151,6 +162,7 @@ export async function toggleIntegrationAction(provider: string) {
 /* ---------------- Settings ---------------- */
 
 export async function updateProfileAction(_: SaveState, formData: FormData): Promise<SaveState> {
+  await ensureSchema();
   const user = await requireUser();
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return { error: "Name is required." };
@@ -160,6 +172,7 @@ export async function updateProfileAction(_: SaveState, formData: FormData): Pro
 }
 
 export async function rotateApiKeyAction() {
+  await ensureSchema();
   const user = await requireUser();
   await db.update(users).set({ apiKey: `v44_${randomToken(32)}` }).where(eq(users.id, user.id));
   revalidatePath("/dashboard/settings");
