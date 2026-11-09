@@ -15,6 +15,9 @@ export const pool =
   globalForDb.__arenaNextJsPostgresqlPool ??
   new Pool({
     connectionString: databaseUrl,
+    // Managed Postgres (Supabase/Neon poolers) present a self-signed chain on some regions
+    ssl: /supabase|neon|render|amazonaws|pooler/i.test(databaseUrl) ? { rejectUnauthorized: false } : undefined,
+    max: 5,
   });
 
 if (process.env.NODE_ENV !== "production") {
