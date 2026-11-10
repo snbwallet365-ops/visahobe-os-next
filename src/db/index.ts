@@ -1,9 +1,11 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
-const databaseUrl = process.env.DATABASE_URL;
+const rawUrl = process.env.DATABASE_URL ?? "";
+// sslmode in the URL overrides the TLS options below, so it is stripped here
+const databaseUrl = rawUrl.replace(/[?&]sslmode=[^&]*/g, "") || rawUrl;
 
-if (!databaseUrl) {
+if (!rawUrl) {
   throw new Error("DATABASE_URL is required");
 }
 

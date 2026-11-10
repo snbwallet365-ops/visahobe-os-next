@@ -1,27 +1,28 @@
 import { NextResponse } from "next/server";
-import { Pool } from "pg";
+import { pool, ensureSchema } from "@/db";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const raw = process.env.DATABASE_URL ?? "";
-  const cleaned = raw.replace(/[?&]sslmode=[^&]*/g, "");
-  const out: Record<string, unknown> = {
-    hasUrl: !!raw,
-    host: raw.split("@")[1]?.split("/")[0] ?? "",
-    hasQuotes: raw.startsWith('"') || raw.endsWith('"'),
-    len: raw.length,
-  };
-  const attempt = async (label: string, cfg: Record<string, unknown>) => {
-    const pool = new Pool({ connectionString: cleaned, max: 1, options: "-c search_path=visahobe_os,public", ...cfg } as never);
+  const out: Record<string, unknown> = {};
+  try {
+    await ensureSchema();
+    const c = await pool.connect();
     try {
-      const r = await pool.query("select current_database() as db, (select count(*) from information_schema.tables where table_schema='visahobe_os')::int as app_tables");
-      out[label] = r.rows[0];
-    } catch (e) {
-      out[label] = String((e as Error).message).slice(0, 160);
-    } finally { await pool.end().catch(() => {}); }
-  };
-  await attempt("noSsl", { ssl: false });
-  await attempt("relaxedSsl", { ssl: { rejectUnauthorized: false } });
+      await c.query("set search_path to visahobe_os, public");
+      const t = await c.query("select table_name from information_schema.tables where table_schema='visahobe_os' order by 1");
+      out.tables = t.rows.map((r) => r.table_name);
+      const cols = await c.query("select column_name, data_type from information_schema.columns where table_schema='visahobe_os' and table_name='users' order by ordinal_position");
+      out.userColumns = cols.rows;
+      const ins = await c.query(
+        "insert into visahobe_os.users (email, name, password_hash, plan, role, api_key) values ($1,$2,$3,'free','user',$4) on conflict (email) do nothing returning id",
+        [`probe+${Date.now()}@example.com`, "probe", "hash", `v44_${Math.random().toString(36).slice(2)}`],
+      );
+      out.insertOk = ins.rowCount;
+    } finally { c.release(); }
+  } catch (e) {
+    out.error = String((e as Error).message).slice(0, 300);
+    out.detail = String((e as { detail?: string }).detail ?? "").slice(0, 200);
+  }
   return NextResponse.json(out);
 }
